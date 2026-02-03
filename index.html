@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visual Scheduler - UTC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.min.js"></script>
+    <style>
+        body, html { height: 100%; margin: 0; overflow: hidden; }
+        /* Custom scrollbar for better UI */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+        
+        // --- Lucide Icon Wrappers for React ---
+        const Icon = ({ name, ...props }) => {
+            const IconComponent = {
+                ChevronLeft: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>,
+                ChevronRight: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>,
+                Clock: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+                CalendarIcon: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>,
+                ClipboardPaste: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 2H9a1 1 0 0 0-1 1v2c0 .6.4 1 1 1h6c.6 0 1-.4 1-1V3a1 1 0 0 0-1-1Z"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>,
+                X: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+                Info: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>,
+                Trash2: (p) => <svg {...p} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>,
+            }[name];
+            return IconComponent ? IconComponent(props) : null;
+        };
+
+        // --- Configuration & Constants ---
+        const ISSUE_COLORS = [
+            { bg: 'bg-blue-100', border: 'border-blue-500', text: 'text-blue-700', shadow: 'shadow-blue-100' },
+            { bg: 'bg-purple-100', border: 'border-purple-500', text: 'text-purple-700', shadow: 'shadow-purple-100' },
+            { bg: 'bg-emerald-100', border: 'border-emerald-500', text: 'text-emerald-700', shadow: 'shadow-emerald-100' },
+            { bg: 'bg-rose-100', border: 'border-rose-500', text: 'text-rose-700', shadow: 'shadow-rose-100' },
+            { bg: 'bg-amber-100', border: 'border-amber-500', text: 'text-amber-700', shadow: 'shadow-amber-100' },
+            { bg: 'bg-indigo-100', border: 'border-indigo-500', text: 'text-indigo-700', shadow: 'shadow-indigo-100' },
+            { bg: 'bg-cyan-100', border: 'border-cyan-500', text: 'text-cyan-700', shadow: 'shadow-cyan-100' },
+            { bg: 'bg-orange-100', border: 'border-orange-500', text: 'text-orange-700', shadow: 'shadow-orange-100' },
+        ];
+
+        const DAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+        const HOUR_HEIGHT = 80;
+
+        // --- Helpers ---
+        const getStartOfWeek = (date) => {
+            const d = new Date(date);
+            const day = d.getUTCDay();
+            const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1);
+            return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), diff));
+        };
+
+        const formatHour = (hour) => {
+            const h = hour % 12 || 12;
+            const ampm = hour < 12 || hour === 24 ? 'AM' : 'PM';
+            return `${h} ${ampm}`;
+        };
+
+        const getColorForIssue = (issueId) => {
+            let hash = 0;
+            const str = String(issueId);
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const index = Math.abs(hash) % ISSUE_COLORS.length;
+            return ISSUE_COLORS[index];
+        };
+
+        // --- Components ---
+        const ImportModal = ({ isOpen, onClose, onImport }) => {
+            const [pasteData, setPasteData] = useState('');
+            const [error, setError] = useState('');
+
+            if (!isOpen) return null;
+
+            const handleProcess = () => {
+                try {
+                    const rows = pasteData.trim().split('\n');
+                    if (rows.length === 0 || (rows.length === 1 && rows[0] === '')) {
+                        throw new Error("No data found. Please paste your sheet rows.");
+                    }
+
+                    const newActivities = rows.map((row, index) => {
+                        const parts = row.split('\t').map(s => s.trim()).filter(s => s !== '');
+                        if (parts.length < 3) return null;
+                        if (row.toLowerCase().includes('issue') || row.toLowerCase().includes('start')) return null;
+
+                        const [issueNum, startDateStr, durationSeconds] = parts;
+                        const parsedDate = new Date(startDateStr);
+                        
+                        if (isNaN(parsedDate.getTime())) {
+                            throw new Error(`Row ${index + 1} has an invalid date format.`);
+                        }
+
+                        const durationMins = parseFloat(durationSeconds) / 60;
+
+                        return {
+                            id: Math.random().toString(36).substr(2, 9),
+                            issueNum: issueNum,
+                            title: `Issue #${issueNum}`,
+                            start: parsedDate.toISOString(),
+                            duration: durationMins
+                        };
+                    }).filter(Boolean);
+
+                    if (newActivities.length === 0) throw new Error("No valid activities found.");
+
+                    onImport(newActivities);
+                    setPasteData('');
+                    setError('');
+                    onClose();
+                } catch (err) {
+                    setError(err.message);
+                }
+            };
+
+            return (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 text-center">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="flex items-center justify-between p-5 border-b border-slate-100">
+                            <div className="text-left">
+                                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                    <Icon name="ClipboardPaste" size={22} className="text-indigo-600" />
+                                    Import UTC Data
+                                </h2>
+                                <p className="text-xs text-slate-500 mt-1">Paste Issue, Start Date (UTC), and Duration (Seconds)</p>
+                            </div>
+                            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
+                                <Icon name="X" size={20} />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 flex flex-col gap-4 overflow-y-auto text-left">
+                            <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl flex gap-3 text-sm text-indigo-900">
+                                <Icon name="Info" size={20} className="shrink-0 text-indigo-500" />
+                                <div>
+                                    <p className="font-semibold mb-1">Pasting Tips:</p>
+                                    <p className="opacity-80 leading-relaxed text-xs">
+                                        Blocks are colored automatically by issue number. Dates must be in UTC ISO format (ending in 'Z'). Supports very short durations (minimum 1px height).
+                                    </p>
+                                </div>
+                            </div>
+
+                            <textarea
+                                className="w-full h-64 p-4 border border-slate-200 rounded-xl font-mono text-xs focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all resize-none bg-slate-50 hover:bg-white"
+                                placeholder={"778\t2026-01-19T11:33:03Z\t1571"}
+                                value={pasteData}
+                                onChange={(e) => setPasteData(e.target.value)}
+                            />
+
+                            {error && (
+                                <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm font-medium animate-pulse">
+                                    ⚠️ {error}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                            <button onClick={onClose} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors">
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleProcess}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-200 transition-all active:scale-95"
+                            >
+                                Import & Colorize
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [currentDate, setCurrentDate] = useState(new Date('2026-02-03T10:51:00Z'));
+            const [activities, setActivities] = useState([]);
+            const [isImportOpen, setIsImportOpen] = useState(false);
+            const scrollContainerRef = useRef(null);
+
+            const weekDays = useMemo(() => {
+                const start = getStartOfWeek(currentDate);
+                return Array.from({ length: 7 }, (_, i) => {
+                    const d = new Date(start);
+                    d.setUTCDate(start.getUTCDate() + i);
+                    return d;
+                });
+            }, [currentDate]);
+
+            useEffect(() => {
+                if (scrollContainerRef.current) {
+                    const currentHour = currentDate.getUTCHours();
+                    const scrollPos = (currentHour - 2) * HOUR_HEIGHT;
+                    scrollContainerRef.current.scrollTop = Math.max(0, scrollPos);
+                }
+            }, [currentDate]);
+
+            const handleImport = (newItems) => {
+                setActivities(newItems);
+                if (newItems.length > 0) {
+                    setCurrentDate(new Date(newItems[0].start));
+                }
+            };
+
+            const navigateWeek = (direction) => {
+                const newDate = new Date(currentDate);
+                newDate.setUTCDate(currentDate.getUTCDate() + (direction * 7));
+                setCurrentDate(newDate);
+            };
+
+            const getPositionStyles = (startStr, durationMins) => {
+                const startDate = new Date(startStr);
+                const hours = startDate.getUTCHours();
+                const minutes = startDate.getUTCMinutes();
+                const top = (hours + minutes / 60) * HOUR_HEIGHT;
+                const calculatedHeight = (durationMins / 60) * HOUR_HEIGHT;
+                const height = Math.max(1, calculatedHeight);
+                
+                return { 
+                    top: `${top}px`, 
+                    height: `${height}px`,
+                    actualHeight: height 
+                }; 
+            };
+
+            const isSelectedDate = (date) => {
+                return date.getUTCDate() === currentDate.getUTCDate() &&
+                    date.getUTCMonth() === currentDate.getUTCMonth() &&
+                    date.getUTCFullYear() === currentDate.getUTCFullYear();
+            };
+
+            const currentTimeTop = (currentDate.getUTCHours() + currentDate.getUTCMinutes() / 60) * HOUR_HEIGHT;
+
+            return (
+                <div className="flex flex-col h-screen bg-white text-slate-800 font-sans overflow-hidden">
+                    <header className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-white z-50 shadow-sm">
+                        <div className="flex items-center gap-6">
+                            <h1 className="text-xl font-extrabold flex items-center gap-2 text-indigo-600 tracking-tight text-left">
+                                <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
+                                    <Icon name="CalendarIcon" size={20} />
+                                </div>
+                                Visual Scheduler <span className="text-slate-400 font-medium text-sm ml-2 px-2 py-0.5 bg-slate-100 rounded">UTC</span>
+                            </h1>
+                            <div className="flex items-center bg-slate-100 rounded-xl p-1 gap-1">
+                                <button onClick={() => navigateWeek(-1)} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600">
+                                    <Icon name="ChevronLeft" size={18} />
+                                </button>
+                                <span className="px-3 font-bold text-xs text-slate-700 min-w-[160px] text-center">
+                                    {weekDays[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })} – {weekDays[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+                                </span>
+                                <button onClick={() => navigateWeek(1)} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-600">
+                                    <Icon name="ChevronRight" size={18} />
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            {activities.length > 0 && (
+                                <button onClick={() => setActivities([])} className="p-2 text-slate-300 hover:text-red-500 transition-colors" title="Clear all">
+                                    <Icon name="Trash2" size={20} />
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => setIsImportOpen(true)}
+                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl flex items-center gap-2 text-sm font-bold transition-all shadow-sm active:translate-y-px"
+                            >
+                                <Icon name="ClipboardPaste" size={18} className="text-indigo-600" />
+                                Import from Sheets
+                            </button>
+                        </div>
+                    </header>
+
+                    <div className="flex border-b border-slate-200 bg-slate-50/50 backdrop-blur-md sticky top-0 z-40">
+                        <div className="w-20 flex items-end justify-center pb-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-r border-slate-100">
+                            UTC
+                        </div>
+                        <div className="flex-1 grid grid-cols-7">
+                            {weekDays.map((date, i) => (
+                                <div key={i} className="py-4 flex flex-col items-center">
+                                    <span className={`text-[10px] font-bold tracking-widest mb-1 ${isSelectedDate(date) ? 'text-indigo-600' : 'text-slate-400'}`}>
+                                        {DAYS[i]}
+                                    </span>
+                                    <div className={`w-10 h-10 flex items-center justify-center rounded-2xl text-lg font-black transition-all
+                                        ${isSelectedDate(date) ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'text-slate-800'}`}>
+                                        {date.getUTCDate()}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="w-4"></div>
+                    </div>
+
+                    <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative scroll-smooth bg-slate-50/20">
+                        <div className="flex min-h-full">
+                            <div className="w-20 flex-shrink-0 border-r border-slate-100 bg-white/50">
+                                {Array.from({ length: 24 }).map((_, hour) => (
+                                    <div key={hour} style={{ height: HOUR_HEIGHT }} className="relative pr-4 text-[10px] font-bold text-slate-400">
+                                        <div className="absolute top-0 right-2 -translate-y-1/2 flex flex-col items-end w-full">
+                                            <span>{formatHour(hour)}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex-1 grid grid-cols-7 relative">
+                                {Array.from({ length: 24 }).map((_, hour) => (
+                                    <div key={hour} className="absolute w-full border-b border-slate-100/60" style={{ top: hour * HOUR_HEIGHT, height: HOUR_HEIGHT }} />
+                                ))}
+                                
+                                {Array.from({ length: 7 }).map((_, i) => (
+                                    <div key={i} className="absolute h-full border-r border-slate-100/60" style={{ left: `${(i + 1) * (100 / 7)}%` }} />
+                                ))}
+
+                                {weekDays.map((dayDate, dayIndex) => {
+                                    const dayStart = Date.UTC(dayDate.getUTCFullYear(), dayDate.getUTCMonth(), dayDate.getUTCDate(), 0, 0, 0, 0);
+                                    const dayEnd = Date.UTC(dayDate.getUTCFullYear(), dayDate.getUTCMonth(), dayDate.getUTCDate(), 23, 59, 59, 999);
+
+                                    return (
+                                        <div key={dayIndex} className="relative h-[1920px]">
+                                            {isSelectedDate(dayDate) && (
+                                                <div className="absolute left-0 w-full z-20 flex items-center pointer-events-none group" style={{ top: currentTimeTop }}>
+                                                    <div className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-md -ml-1.25 ring-4 ring-red-500/10" />
+                                                    <div className="flex-1 h-0.5 bg-red-500/40" />
+                                                </div>
+                                            )}
+
+                                            {activities
+                                                .filter(a => {
+                                                    const start = new Date(a.start).getTime();
+                                                    return start >= dayStart && start <= dayEnd;
+                                                })
+                                                .map(activity => {
+                                                    const colors = getColorForIssue(activity.issueNum);
+                                                    const styles = getPositionStyles(activity.start, activity.duration);
+                                                    const showContent = styles.actualHeight > 20;
+
+                                                    return (
+                                                        <div
+                                                            key={activity.id}
+                                                            className={`absolute left-[2px] right-[2px] rounded-sm border-l-[4px] overflow-hidden transition-all cursor-pointer z-10 
+                                                                ${colors.bg} ${colors.border} ${colors.text} ${showContent ? 'p-1.5 rounded-lg shadow-sm border-l-[6px]' : 'hover:z-30 hover:scale-y-110'}`}
+                                                            style={{ top: styles.top, height: styles.height }}
+                                                        >
+                                                            {showContent && (
+                                                                <div className="text-left">
+                                                                    <div className="font-black leading-tight mb-0.5 truncate text-[10px]">{activity.title}</div>
+                                                                    <div className="flex items-center gap-1 font-bold opacity-75 text-[9px]">
+                                                                        <Icon name="Clock" size={10} strokeWidth={3} />
+                                                                        {Math.round(activity.duration)}m
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <footer className="px-6 py-3 border-t border-slate-200 bg-white flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        <div className="flex items-center gap-2">
+                            <Icon name="Info" size={14} className="text-slate-300" />
+                            Blocks support 1px minimum height
+                        </div>
+                        <div className="text-indigo-600">
+                            {activities.length} UTC activities
+                        </div>
+                    </footer>
+
+                    <ImportModal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} onImport={handleImport} />
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
